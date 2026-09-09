@@ -1,0 +1,141 @@
+# Stage B: align the broad CoT adapter to the exact BIRD prompt/domain.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 120
+clean = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 1
+
+# The launcher supplies --resume.dir=<stage-A step_N>. Load only model/LoRA state.
+[ckpt]
+interval = 10
+keep_last = 3
+keep_interval = 40
+skip_progress = true
+skip_scheduler = true
+skip_dataloader = true
+skip_optimizer = true
+
+[model]
+name = "/data/qwen3-4b-instruct-2507"
+seq_len = 32768
+
+[model.lora]
+rank = 32
+alpha = 64.0
+dropout = 0.0
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[renderer]
+name = "qwen3"
+enable_thinking = false
+
+[data]
+name = "/data/ximo/bird-text2sql-rl/data/sft-v2-bird"
+splits = ["train"]
+seq_len = 32768
+batch_size = 8
+micro_batch_size = 1
+num_workers = 2
+shuffle = true
+seed = 23
+
+[data.loss_mask]
+system = false
+user = false
+assistant = true
+tool = false
+
+[val]
+interval = 10
+eval_on_start = true
+
+[val.data]
+name = "/data/ximo/bird-text2sql-rl/data/sft-v2-bird"
+splits = ["validation"]
+seq_len = 32768
+batch_size = 8
+micro_batch_size = 1
+num_workers = 1
+shuffle = false
+
+[optim]
+type = "adamw"
+lr = 1e-5
+weight_decay = 0.0
+max_norm = 1.0
+
+[scheduler]
+type = "constant"
+
+[weight_broadcast]
+type = "filesystem"
+
+[monitors.file]
+
+[eval]
+interval = 10
+num_examples = 256
+group_size = 1
+
+[eval.sampling]
+temperature = 0.0
+max_completion_tokens = 2048
+
+[eval.concurrency]
+max_inflight = 32
+
+[[eval.source]]
+name = "bird-platinum-validation"
+interval = 10
+num_examples = -1
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/data/ximo/bird-text2sql-rl/data/rlvr-v2/validation.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.sample_rows = 3
+env.taskset.task.shape_reward = false
+env.taskset.task.use_verieql = false
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[[eval.source]]
+name = "bird-dev-probe"
+interval = 10
+num_examples = 256
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/data/ximo/bird-dev/dev_20251106.json"
+env.taskset.database_root = "/data/ximo/minidev/MINIDEV/dev_databases"
+env.taskset.limit = 256
+env.taskset.shuffle_seed = 1701
+env.taskset.sample_rows = 3
+env.taskset.task.shape_reward = false
+env.taskset.task.use_verieql = false
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[[eval.source]]
+name = "bird-dev-full"
+interval = 120
+num_examples = 1534
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/data/ximo/bird-dev/dev_20251106.json"
+env.taskset.database_root = "/data/ximo/minidev/MINIDEV/dev_databases"
+env.taskset.limit = 1534
+env.taskset.sample_rows = 3
+env.taskset.task.shape_reward = false
+env.taskset.task.use_verieql = false
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[inference]
+
+[inference.vllm]
+gpu_memory_utilization = 0.9
+max_model_len = 36864

@@ -1,0 +1,111 @@
+# Corrective BIRD CoT warm start for RLVR. Every target keeps GPT-5.4 CoT;
+# train questions already solved by Base keep their Base-equivalent SQL, while
+# unsolved questions use the ReViSQL verified SQL.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 80
+clean = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 1
+
+# Retain all online-eval candidates until the verified-validation best is known.
+[ckpt]
+interval = 10
+
+[model]
+name = "/data/qwen3-4b-instruct-2507"
+seq_len = 32768
+
+# Smaller adapter plus dropout reduces the rapid behavior drift observed with
+# rank-32/no-dropout at step 20 of the v3 run.
+[model.lora]
+rank = 16
+alpha = 32.0
+dropout = 0.05
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[renderer]
+name = "qwen3"
+enable_thinking = false
+
+[data]
+name = "/data/ximo/bird-text2sql-rl/data/sft-v3-bird-corrective"
+splits = ["train"]
+seq_len = 32768
+batch_size = 4
+micro_batch_size = 1
+num_workers = 2
+shuffle = true
+seed = 23
+
+[data.loss_mask]
+system = false
+user = false
+assistant = true
+tool = false
+
+# Full teacher-forced validation is expensive and diagnostic-only, so run it
+# every 20 steps. Rollout execution remains every 10 steps for selection.
+[val]
+interval = 20
+eval_on_start = true
+
+[val.data]
+name = "/data/ximo/bird-text2sql-rl/data/sft-v3-bird-corrective"
+splits = ["validation"]
+seq_len = 32768
+batch_size = 4
+micro_batch_size = 1
+num_workers = 1
+shuffle = false
+
+[optim]
+type = "adamw"
+lr = 5e-6
+weight_decay = 0.0
+max_norm = 1.0
+
+[scheduler]
+type = "cosine"
+warmup_steps = 4
+min_lr = 5e-7
+
+[weight_broadcast]
+type = "filesystem"
+
+[monitors.file]
+
+[eval]
+interval = 10
+num_examples = -1
+group_size = 1
+
+[eval.sampling]
+temperature = 0.0
+max_completion_tokens = 2048
+
+[eval.concurrency]
+max_inflight = 32
+
+[[eval.source]]
+name = "bird-platinum-validation"
+interval = 10
+num_examples = -1
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/data/ximo/bird-text2sql-rl/data/rlvr-v2/validation.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.sample_rows = 3
+env.taskset.task.shape_reward = false
+env.taskset.task.use_verieql = false
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[inference]
+
+[inference.vllm]
+gpu_memory_utilization = 0.9
+max_model_len = 36864
+enable_prefix_caching = true

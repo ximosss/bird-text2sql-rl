@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+# Lab generated artifacts
+.env
+/outputs/
+/prime-rl/
+/prime-rl.previous/
+/data/processed/
+/data/raw/
+/environments/*/outputs/
+/environments/*/dist/
+/environments/*/*.egg-info/
+/environments/*/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+third_party/VeriEQL/

@@ -1,0 +1,113 @@
+# Literature-aligned BIRD warm start for RLVR. The dataset, renderer, LoRA
+# topology, assistant-only loss, and execution evaluator are held fixed from
+# v8. V9 changes only optimization strength: a smaller packed token batch,
+# a LoRA-scale learning rate, and three complete data passes.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 510
+clean = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 1
+
+[ckpt]
+interval = 85
+keep_last = 6
+
+[model]
+name = "/data/qwen3-4b-instruct-2507"
+seq_len = 32768
+
+[model.lora]
+rank = 16
+alpha = 32.0
+dropout = 0.05
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[renderer]
+name = "qwen3"
+enable_thinking = false
+
+[data]
+name = "/data/ximo/bird-text2sql-rl/data/sft-v5-bird-base-replay"
+splits = ["train"]
+seq_len = 32768
+batch_size = 2
+micro_batch_size = 1
+num_workers = 2
+shuffle = true
+seed = 31
+
+[data.loss_mask]
+system = false
+user = false
+assistant = true
+tool = false
+
+# One interval is approximately half an epoch at batch_size=2. Teacher-forced
+# validation loss is diagnostic; checkpoint selection uses execution eval.
+[val]
+interval = 85
+eval_on_start = true
+
+[val.data]
+name = "/data/ximo/bird-text2sql-rl/data/sft-v5-bird-base-replay"
+splits = ["validation"]
+seq_len = 32768
+batch_size = 2
+micro_batch_size = 1
+num_workers = 1
+shuffle = false
+
+[optim]
+type = "adamw"
+lr = 3e-5
+weight_decay = 0.0
+max_norm = 1.0
+
+[scheduler]
+type = "cosine"
+warmup_steps = 25
+min_lr = 3e-6
+
+[weight_broadcast]
+type = "filesystem"
+
+[monitors.file]
+
+[eval]
+interval = 85
+num_examples = -1
+group_size = 3
+
+[eval.sampling]
+temperature = 0.0
+max_completion_tokens = 2048
+
+[eval.concurrency]
+max_inflight = 8
+
+[[eval.source]]
+name = "bird-platinum-validation"
+interval = 85
+num_examples = -1
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/data/ximo/bird-text2sql-rl/data/rlvr-v2/validation.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.sample_rows = 3
+env.taskset.task.timeout_seconds = 8.0
+env.taskset.task.gold_timeout_seconds = 60.0
+env.taskset.task.shape_reward = false
+env.taskset.task.use_verieql = false
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[inference]
+
+[inference.vllm]
+gpu_memory_utilization = 0.9
+max_model_len = 36864
+enable_prefix_caching = true
+generation_config = "vllm"

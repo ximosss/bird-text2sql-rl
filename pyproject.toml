@@ -1,0 +1,24 @@
+[project]
+name = "bird-text2sql-rl"
+version = "0.1.0"
+description = "Reproducible execution-RL experiments for single-turn BIRD Text-to-SQL"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bird-text2sql",
+    "verifiers>=0.3.0",
+]
+
+[tool.uv.sources]
+bird-text2sql = { path = "environments/bird_text2sql", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+    "environments/bird_text2sql/tests",
+]

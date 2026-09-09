@@ -1,0 +1,74 @@
+# Canonical BIRD SFT: teacher reasoning plus verified SQL, with SQL-only content.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 1965
+clean = false
+dashboard = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 0
+
+[ckpt]
+interval = 327
+keep_last = 7
+
+[model]
+name = "/data/qwen3-4b-instruct-2507"
+seq_len = 32768
+
+[model.lora]
+rank = 16
+alpha = 32.0
+dropout = 0.05
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# The renderer trains reasoning_content followed by content. Keeping thinking
+# enabled avoids the disabled-thinking empty-prefix used by the generic Qwen3
+# renderer, which is not part of the Instruct-2507 generation prompt.
+[renderer]
+name = "qwen3"
+enable_thinking = true
+
+[data]
+name = "/home/ubuntu/bird-text2sql-rl/data/processed/sft-bird-cot-sql-v1"
+splits = ["train"]
+seq_len = 32768
+batch_size = 1
+micro_batch_size = 1
+num_workers = 2
+shuffle = true
+seed = 31
+
+[data.loss_mask]
+system = false
+user = false
+assistant = true
+tool = false
+
+# This is teacher-forced loss only. Rollout/execution evaluation is a separate
+# post-training run and does not start an inference server during SFT.
+[val]
+interval = 327
+eval_on_start = false
+
+[val.data]
+name = "/home/ubuntu/bird-text2sql-rl/data/processed/sft-bird-cot-sql-v1"
+splits = ["validation"]
+seq_len = 32768
+batch_size = 1
+micro_batch_size = 1
+num_workers = 1
+shuffle = false
+
+[optim]
+type = "adamw"
+lr = 3e-5
+weight_decay = 0.0
+max_norm = 1.0
+
+[scheduler]
+type = "cosine"
+warmup_steps = 100
+min_lr = 3e-6
+
+[monitors.file]

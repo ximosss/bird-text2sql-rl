@@ -1,0 +1,88 @@
+# SQL-only execution-RL from Qwen3-4B-Instruct-2507 with online curriculum.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 120
+seq_len = 36864
+dashboard = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 1
+
+[ckpt]
+interval = 10
+keep_last = 3
+keep_interval = 20
+
+[model]
+name = "/data/qwen3-4b-instruct-2507"
+
+[monitors.file]
+
+[trainer.model]
+impl = "auto"
+
+[trainer.model.lora]
+rank = 32
+alpha = 64.0
+dropout = 0.0
+target_modules = [
+  "q_proj",
+  "k_proj",
+  "v_proj",
+  "o_proj",
+  "gate_proj",
+  "up_proj",
+  "down_proj",
+]
+
+[trainer.optim]
+type = "adamw"
+lr = 3e-6
+weight_decay = 0.0
+max_norm = 1.0
+betas1 = 0.9
+betas2 = 0.999
+
+[trainer.scheduler]
+type = "constant"
+
+[trainer.loss]
+type = "default"
+adv_tau = 1.0
+kl_tau = 1e-3
+dppo_mask_low = 0.2
+dppo_mask_high = 0.2
+
+[orchestrator]
+batch_size = 64
+group_size = 8
+
+[orchestrator.model.lora]
+
+[orchestrator.renderer]
+name = "qwen3"
+enable_thinking = true
+
+[orchestrator.train.sampling]
+temperature = 0.8
+max_completion_tokens = 1024
+
+[[orchestrator.train.source]]
+name = "bird-rl-v1-train"
+curriculum = { gates = { zero_advantage = { type = "advantage_range" } } }
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/data/ximo/bird-text2sql-rl/data/rl-v1/train.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.shuffle_seed = 17
+env.taskset.sample_rows = 3
+env.taskset.task.timeout_seconds = 5.0
+env.taskset.task.gold_timeout_seconds = 30.0
+env.taskset.task.float_digits = 10
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[inference.vllm]
+gpu_memory_utilization = 0.9
+max_model_len = 36864
