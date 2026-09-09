@@ -59,7 +59,7 @@ completion
   才调用。这样使训练信号与最终 execution 指标一致，并避免把旧 XML process
   约束误当成当前目标。
 
-评测时预测 SQL 会先按 SQLite 方言解析，只允许一条只读查询，再用只读 SQLite connection 执行。主指标 `exact_execution` 根据任务的 BIRD Platinum grading method 比较结果。当前推荐 RL 配置同样关闭 XML/process shaping，只使用 execution correctness。
+评测时预测 SQL 会先按 SQLite 方言解析，只允许一条只读查询，再用只读 SQLite connection 执行。主指标 `exact_execution` 根据任务的 BIRD Platinum grading method 比较结果。当前 SFT post-eval 配置关闭 XML/process shaping，只使用 execution correctness。
 
 关键指标：
 

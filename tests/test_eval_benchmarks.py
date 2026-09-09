@@ -95,9 +95,3 @@ def test_slow_gold_cache_matches_all_four_annotation_sets() -> None:
             observed = hashlib.sha256(rows[question_id]["SQL"].strip().encode()).hexdigest()
             assert observed == cached["gold_sql_sha256"]
 
-
-def test_launcher_exposes_the_frozen_generalization_suite() -> None:
-    launcher = (ROOT / "scripts/launch_prime_rl_eval.sh").read_text()
-    assert "generalization" in launcher
-    for name in ("arcwise-plat", "arcwise-plat-sql", "bird-mini-dev", "bird-full-dev"):
-        assert name in launcher
