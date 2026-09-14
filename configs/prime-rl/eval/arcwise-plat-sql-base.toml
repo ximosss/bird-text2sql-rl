@@ -1,0 +1,49 @@
+# Base-model protocol for the SQL-corrected 498-example Arcwise-Plat benchmark.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+model = "bird-text2sql-base"
+num_tasks = 498
+num_rollouts = 1
+max_concurrent = 32
+shuffle = false
+push = false
+
+[client]
+type = "eval"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_var = "LOCAL_API_KEY"
+
+[sampling]
+temperature = 0.0
+max_tokens = 2048
+
+[sampling.extra_body.chat_template_kwargs]
+enable_thinking = false
+
+[env.taskset]
+id = "bird-text2sql"
+path = "/home/ubuntu/bird-text2sql-rl/data/eval/arcwise/arcwise_plat_sql_only_with_diff.json"
+database_root = "/data/ximo/minidev/MINIDEV/dev_databases"
+gold_cache_path = "/home/ubuntu/bird-text2sql-rl/data/eval/slow_gold_cache.json"
+sample_rows = 3
+
+[env.taskset.task]
+timeout_seconds = 30.0
+gold_timeout_seconds = 60.0
+float_digits = 10
+shape_reward = false
+use_verieql = false
+
+[env.agent]
+max_turns = 1
+max_output_tokens = 2048
+max_total_tokens = 36864
+
+[env.agent.harness]
+id = "null"
+
+[env.agent.runtime]
+type = "subprocess"
+
+[serve.pool]
+type = "static"
+num_workers = 2

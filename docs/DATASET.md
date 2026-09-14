@@ -1,131 +1,227 @@
-# 数据集与数据合同
+# 数据集
 
-## 1. 当前数据资产总览
+## 1. 总表
 
-| 用途 | 数据集 | 数量 | 是否用于选模型 |
-| --- | --- | ---: | --- |
-| SFT train / validation | ReViSQL verified + BIRD-Verified-CoT-2462-GPT5.4 | 2,064 / 398 | validation 是 teacher-forced 诊断 |
-| SFT post-eval taskset | `rlvr-v2` validation | 396 | 是；用于确认 SFT v10 execution 效果 |
-| 最终干净侧泛化 | Arcwise-Plat / Arcwise-Plat-SQL | 498 / 498 | 否；冻结后只跑一次 |
-| 最终噪声侧泛化 | 原始 BIRD Mini-Dev / Full Dev | 500 / 1,534 | 否；冻结后只跑一次 |
+| 阶段 | Split | 上游数据 | 处理后数量 | 作用 |
+| --- | --- | --- | ---: | --- |
+| SFT | train | ReViSQL `bird-verified-train` + GPT-5.4 CoT | 2,064 | 参数训练 |
+| SFT | validation | ReViSQL `bird-verified-val` + GPT-5.4 CoT | 398 | teacher-forced loss；只作拟合诊断 |
+| RLVR | train | ReViSQL `bird-verified-train` | 2,050 | 在线 rollout 与 execution reward |
+| RLVR | validation | ReViSQL `bird-verified-val` | 396 | SFT/RLVR checkpoint 的 execution 选择 |
+| 最终测试 | Arcwise-Plat | 校正后的 BIRD Mini-Dev 子集 | 498 | 全校正条件下的泛化 |
+| 最终测试 | Arcwise-Plat-SQL | 仅校正 SQL 的 BIRD Mini-Dev 子集 | 498 | 原始问题/schema 噪声下的泛化 |
+| 最终测试 | BIRD Mini-Dev | 官方 Mini-Dev | 500 | 原始标注上的小规模测试 |
+| 最终测试 | BIRD Full Dev | 官方 2024-06-27 Dev | 1,534 | 原始标注上的完整测试 |
 
-这里的边界是刻意的：verified validation 用来判断训练有没有工作；四个最终基准不参与调参或 checkpoint 选择，避免把最终泛化集变成开发集。
 
-## 2. 当前 SFT 数据
 
-当前 BIRD SFT 数据由两部分按题目一一 join：ReViSQL verified train/validation 提供问题、external evidence 与 gold SQL；BIRD-Verified-CoT-2462-GPT5.4 只提供 teacher reasoning。
+## 2. 共同依赖：BIRD SQLite 数据库
+
+JSON/JSONL 只保存题目和 SQL，不包含数据库。需要另外准备两套数据库：
 
 ```text
-verified train       2,064
-verified validation    398
-teacher CoT           2,462
+<bird-train-root>/
+└── <db_id>/
+    ├── <db_id>.sqlite
+    └── database_description/*.csv
+
+<bird-dev-root>/
+└── <db_id>/
+    ├── <db_id>.sqlite
+    └── database_description/*.csv
 ```
 
-每条 assistant 消息为：
+- SFT 和 RLVR 使用 BIRD train databases。
+- 四个最终测试使用 BIRD dev databases。
+- `sample_rows=3` 时，预处理或环境会把每张表最多三行真实值写进 schema prompt。
+
+从 [BIRD 官方站点](https://bird-bench.github.io/) 获取.
+
+## 3. SFT 数据
+
+### 3.1 来源
+
+SFT 逐题连接两个来源，连接键是 `(db_id, question_id)`：
+
+1. [ReViSQL](https://github.com/uiuc-kang-lab/ReViSQL) 的
+   `data/bird-verified-train.json`（2,064）和 `data/bird-verified-val.json`
+   （398）。它拥有最终的 `question`、`evidence`、`SQL` 和 `grading_method`；
+   gold SQL 以这里为准。
+2. [wenyupapa/BIRD-Verified-CoT-2462-GPT5.4](https://huggingface.co/datasets/wenyupapa/BIRD-Verified-CoT-2462-GPT5.4)
+   的 `bird-verified-cot-2462.parquet`（2,462）。它只提供 teacher reasoning，
+   不覆盖或改写 ReViSQL 的题目与 SQL。
+
+CoT 数据集是 ReViSQL 2,462 道 verified 题的 GPT-5.4 structured reasoning 版本，
+
+
+### 3.2 用法
+
+- `train.jsonl` 用于 `configs/prime-rl/sft-bird.toml` 的 SFT train。
+- `validation.jsonl` 只计算 teacher-forced validation loss，不执行 SQL，也不作为
+  最终泛化分数。
+- assistant 的 reasoning 和最终答案分开存储：
 
 ```json
 {
   "role": "assistant",
-  "reasoning_content": "teacher chain of thought",
+  "reasoning_content": "teacher reasoning",
   "content": "SELECT ..."
 }
 ```
 
-`content` 必须是 verified gold SQL，不含 XML、解释或 Markdown；`reasoning_content` 只含 teacher CoT。换言之，监督数据学习的是“在 reasoning channel 思考、在最终 content 只交 SQL”，而不是把 CoT 泄露到最终答案。
+训练 renderer 将它渲染为模型原生 thinking tokens 后接 SQL。`content` 始终只有
+verified gold SQL，不含 CoT、XML、Markdown 或解释。
 
-当前生成物：
+### 3.3 预处理
 
-```text
-data/processed/sft-bird-cot-sql-v1/
-├── train.jsonl          # 2,064
-├── validation.jsonl     # 398
-└── manifest.json
-```
+`scripts/prepare_sft_data.py bird` 执行以下步骤：
 
-现存 manifest 记录 `contract_version=bird-cot-sql-v1`、`missing_cot=0`、`overlong=0`、最长序列 32,093 tokens、总接受 token 数 10,852,629。长度按实际 Qwen3 训练序列，即 `<think>CoT</think> + SQL` 计算；Hugging Face 原生 chat template 不读取自定义 `reasoning_content`，所以转换器不能只对 `content` 做长度审计。
+1. 读取 ReViSQL 的原始 train/validation split，不重新随机切分。
+2. 按 `(db_id, question_id)` 一一连接 CoT；重复 key、缺失 CoT 或未消费的 CoT
+   都会使构建失败。
+3. 从对应 SQLite 和 description CSV 渲染 schema，并为每张表加入最多 3 行样例。
+4. 从 CoT 的 `parsed` 字段提取 reasoning；若无结构化字段，回退到 `reasoning`
+   并删除其中重复的 `#SQL`。
+5. 把 ReViSQL gold SQL 写入 `assistant.content`。
+6. 按 Qwen3 的真实训练模板计算完整序列长度；超过 32,768 tokens 的样本过滤掉。
+7. 输出数据和 manifest，记录输入/输出 SHA-256、数量、token 数和最长样本。
 
-重新构建：
+构建命令：
 
 ```bash
 uv run scripts/prepare_sft_data.py bird \
-  --verified-train /path/to/bird_verified_train.json \
-  --verified-validation /path/to/bird_verified_val.json \
-  --cot /path/to/data.parquet \
-  --database-root /data/ximo/sql-training/train_databases \
+  --verified-train /path/to/ReViSQL/data/bird-verified-train.json \
+  --verified-validation /path/to/ReViSQL/data/bird-verified-val.json \
+  --cot /path/to/bird-verified-cot-2462.parquet \
+  --database-root /path/to/train_databases \
   --output-dir data/processed/sft-bird-cot-sql-v1 \
-  --model /data/qwen3-4b-instruct-2507 \
+  --model /path/to/Qwen3-4B-Instruct-2507 \
   --max-tokens 32768 \
   --sample-rows 3
 ```
 
-转换器会验证 join 唯一且完整，并把源文件与输出文件 SHA-256 写入 manifest。
-
-## 3. SFT post-eval 任务数据
-
-`scripts/prepare_rlvr_data.py` 从同一份 verified JSON 构建 post-SFT execution eval
-使用的 Taskset。它预先只读执行 gold SQL，把保留行序和重复行的
-`gold_rows_json` 写进任务；评测热路径只需执行预测 SQL。这既降低 gold 侧 I/O，
-也避免并发评测时慢 gold 查询造成不稳定。
-
-过滤规则如下，所有拒绝项都写入 `rejections.jsonl`：
-
-- gold 无法执行或在 60 秒内超时；
-- gold 结果为空；
-- gold 结果超过 100,000 行或序列化后超过 2 MB。
-
-当前本地生成物在 `/data/ximo/bird-text2sql-rl/data/rlvr-v2/`：
+已有生成物：
 
 ```text
-train        2,050 / 源 2,064
-validation     396 / 源   398
-rejected       16
-  empty_gold_result          3
-  gold_invalid_or_timeout    1
-  gold_result_too_large     12
+data/processed/sft-bird-cot-sql-v1/
+├── train.jsonl          # 2,064
+├── validation.jsonl     #   398
+└── manifest.json        # provenance、哈希、计数和 token 统计
 ```
 
-每行保留题目 `grading_method`；环境优先使用行内 `gold_rows_json`，也兼容由题目
-ID 与 SQL SHA-256 保护的 sidecar gold cache。
+当前 manifest：`missing_cot=0`、`overlong=0`、最长 32,093 tokens，总接受
+10,852,629 tokens。manifest 内的绝对源路径只是生成时记录，不是新的目录要求。
+
+## 4. RLVR 数据
+
+### 4.1 来源与用途
+
+RLVR 同样从 ReViSQL 的 `bird-verified-train.json` 和 `bird-verified-val.json`
+开始，但不使用 GPT-5.4 CoT：
+
+- `rlvr-v2/train.jsonl`：RLVR 在线采样的训练 taskset，2,050 题。
+- `rlvr-v2/validation.jsonl`：固定 execution eval，396 题；同时用于 SFT 后评测
+  和 RLVR checkpoint 选择。
+
+每条任务保留 `question`、`evidence`、`db_id`、verified `SQL`、
+`grading_method`，并新增稳定 ID、SQL 难度标签和预执行的 `gold_rows_json`。运行时
+环境根据题目和数据库重新构造与 SFT 一致的 schema prompt；模型看不到 gold SQL
+或 gold rows。
+
+### 4.2 预处理
+
+`scripts/prepare_rlvr_data.py` 对每条 gold SQL 做只读 SQLite 执行，并执行以下规则：
+
+- 60 秒内无法成功执行：拒绝；
+- gold 结果为空：拒绝，因为 execution equality 会产生大量无信息真阳性；
+- 超过 100,000 行或序列化后超过 2 MB：拒绝，避免训练热路径失控；
+- 保留原始行序和重复行，评分时再按该题的 `set`、`multiset`、`list` 或 `subset`
+  合同比较；
+- 检查 train/validation 的 `(db_id, normalized question)` 不重叠；
+- 所有拒绝项写入 `rejections.jsonl`，所有输入输出哈希写入 `manifest.json`。
 
 构建命令：
 
 ```bash
 uv run scripts/prepare_rlvr_data.py \
-  --verified-train /path/to/bird_verified_train.json \
-  --verified-validation /path/to/bird_verified_val.json \
-  --database-root /data/ximo/sql-training/train_databases \
-  --output-dir /data/ximo/bird-text2sql-rl/data/rlvr-v2
+  --verified-train /path/to/ReViSQL/data/bird-verified-train.json \
+  --verified-validation /path/to/ReViSQL/data/bird-verified-val.json \
+  --database-root /path/to/train_databases \
+  --output-dir /path/to/rlvr-v2
 ```
 
-SFT validation 是 398 题而 selection eval 是 396 题，差异正是上述 2 条 validation 拒绝项，不是漏数据。
+期望输出：
 
-## 4. 最终泛化基准
+```text
+rlvr-v2/
+├── train.jsonl          # 2,050 / 2,064
+├── validation.jsonl     #   396 /   398
+├── rejections.jsonl     #    16
+└── manifest.json
+```
 
-冻结 checkpoint 后，对 Base 和 SFT 模型统一运行：
+16 条拒绝由 3 条空结果、1 条执行失败/超时和 12 条结果过大组成。SFT validation
+是 398 而 execution validation 是 396，正是因为 validation 侧有 2 条被上述规则
+拒绝，并非 split 不一致。
 
-| 基准 | 题数 | 标注环境 | 目的 |
-| --- | ---: | --- | --- |
-| Arcwise-Plat | 498 | SQL、问题/evidence、schema descriptions 均校正 | 良好环境下的能力上限 |
-| Arcwise-Plat-SQL | 498 | SQL 校正，原始问题/evidence/schema 保留 | 隔离 SQL label 修正的影响 |
-| BIRD Mini-Dev | 500 | 官方原始噪声标注 | 小规模混乱环境鲁棒性 |
-| BIRD Full Dev | 1,534 | 官方 2024-06 Full Dev 原始标注 | 更广覆盖的混乱环境鲁棒性 |
+RLVR 的主 reward 是预测 SQL 与预缓存 gold rows 的 exact execution equality。
+`format_valid`、`executable_sql`、`execution_timeout` 是诊断指标.
 
-Arcwise 两套数据来自 `uiuc-kang-lab/text_to_sql_benchmarks` 固定 commit `fe766045c55b6875a43b30e9ac7683df5582f8cf`。Arcwise 明确缺少原始 Mini-Dev 的 question ID 119、120，因此分母始终是 498。只有 Arcwise-Plat 使用校正后的 schema descriptions；其他三套使用数据库旁的原始 descriptions。
+## 5. 最终测试数据
 
-原始标注、license、来源与逐文件 SHA-256 见 [`data/eval/README.md`](../data/eval/README.md)。`slow_gold_cache.json` 只缓存已知极慢的 gold ID 518、701，并由 gold SQL SHA-256 绑定；预测 SQL仍然现场执行。
+### 5.0 为什么主报告采用 Arcwise
 
-## 5. 历史数据资产
+[Thinking Machines/ReViSQL 的数据审计](https://thinkingmachines.ai/news/putting-task-expertise-into-rl/)
+在抽查约 2,500 条 BIRD Train 后发现 52.1% 的 gold SQL 不正确。对 BIRD Mini-Dev
+的两轮清洗最终检测到 52.8% 样本存在 annotation 错误；第一轮 Arcwise 清洗已经
+修正 32.3%，第二轮又发现更多问题。因此：
 
-这些数据解释历史 run，但不进入当前 v10 → direct RLVR 主路线：
+- Arcwise-Plat-SQL 是文章正式使用、可跨项目比较的主指标；
+- Arcwise-Plat 继续修正 question、evidence 和 schema descriptions，是本项目的
+  干净输入能力指标；
+- 原始 Mini-Dev 和 Full Dev 保留为带噪鲁棒性测试，不能单独用于判断训练是否提升。
 
-| 本地目录 | 数量 | 历史用途 |
-| --- | ---: | --- |
-| `rl-v1` | source 6,601；valid nonempty 6,496；train 4,904；ID/OOD 各 150 | 旧 SQL-only online GRPO；14 个 schema-OOD DB |
-| `sft-v2-wide` | train 914,320；validation 1,836 | SynSQL Think wide CoT SFT |
-| `sft-v2-bird` | train 2,064；validation 398 | 旧 SQL-only direct SFT target |
-| `sft-v3-bird-corrective` | train 2,064；validation 398 | 1,407 条 Base 正确回放 + 643 条 teacher SQL 修复 + 14 条未匹配补齐 |
-| `sft-v4-bird-error-correction` | train 2,729；unique 2,064 | 错题/teacher target 加权重复 |
-| `sft-v5-bird-base-replay` | train 2,064；unique 2,064 | 去掉额外重复后的 Base replay 混合 |
-| `sft-v6-bird-sql-emphasis` | train 2,729；unique 2,064 | 再加入 665 条 SQL-emphasis copy |
+本项目 step 1,300 在共享 498 个 ID 的两套 Arcwise 数据上从 75.50% 提升到
+81.12%，paired 净增 28 题（50 gain / 22 loss，`p=0.00129`），进一步验证输入侧
+annotation 噪声会显著影响测量结果。完整结果见 [`RESULTS.md`](RESULTS.md#1-revisql-bird-qwen3-4b)。
 
-构建 corrective 系列所用的有效 Base rollout 是 `sft-train-base-v3--20260904-201932`：2,050/2,050 trace 成功，1,407 exact、643 non-exact。对应训练与结果解释见 [RESULTS.md](RESULTS.md)。这些目录在本地数据盘上，源数据、数据库和模型均不随仓库发布；复现时以各目录 `manifest.json` 的哈希为准。
+### 5.1 四套固定基准
+
+| 基准 | 本仓库 annotation | DB/schema | 测什么 |
+| --- | --- | --- | --- |
+| Arcwise-Plat | `data/eval/arcwise/arcwise_plat_full_with_diff.json` | BIRD dev DB + Arcwise 校正 descriptions | SQL、问题/evidence、schema 全校正后的能力 |
+| Arcwise-Plat-SQL | `data/eval/arcwise/arcwise_plat_sql_only_with_diff.json` | BIRD dev DB + 原始 descriptions | 只修 SQL label、保留输入噪声时的能力 |
+| BIRD Mini-Dev | `data/eval/bird/mini_dev_sqlite.json` | BIRD dev DB + 原始 descriptions | 官方 500 题原始 Mini-Dev |
+| BIRD Full Dev | `data/eval/bird/dev_20240627.json` | BIRD dev DB + 原始 descriptions | 官方 1,534 题完整 Dev |
+
+Arcwise 两套数据来自
+[uiuc-kang-lab/text_to_sql_benchmarks](https://github.com/uiuc-kang-lab/text_to_sql_benchmarks)
+固定 commit `fe766045c55b6875a43b30e9ac7683df5582f8cf`。它们共享 498 个 ID，均缺少
+Mini-Dev 的 ID 119 和 120，所以不能把分母写成 500。
+
+BIRD Mini-Dev 来自 [官方 Mini-Dev 仓库](https://github.com/bird-bench/mini_dev)；
+Full Dev 来自 BIRD 官方 `dev_20240627` 发布。annotation、校正 schema overlay、
+许可证和 SHA-256 已 vendored；详见 [`data/eval/README.md`](../data/eval/README.md)。
+
+### 5.2 测试时处理
+
+最终测试不再做训练式过滤或重新切分。环境加载 annotation 后：
+
+1. 按 `db_id` 找到 dev SQLite；Arcwise-Plat 额外覆盖校正 description CSV。
+2. 构造相同的 system/user prompt，每表最多加入 3 行样例。
+3. 现场执行预测 SQL；gold SQL 通常也现场执行。
+4. ID 518 和 701 的 gold 查询极慢，因此从 `data/eval/slow_gold_cache.json`
+   读取 gold rows；缓存由 gold SQL SHA-256 绑定，annotation 改变会直接报错。
+
+四个配置均为 `temperature=0`、单 rollout、`push=false`，结果写入
+`outputs/prime-rl/`。Base、SFT、RLVR 候选必须在同一基准上采用预先固定的生成与
+thinking 协议，并做逐题 paired 比较。
+
+## 6. 数据隔离规则
+
+- SFT train 和 RLVR train 可以同源；两者都不能读取最终测试 annotation 做训练。
+- 398 条 SFT validation 只看 loss；396 条 RLVR validation 可用于选择 checkpoint。
+- 四个最终测试只在 checkpoint 和协议冻结后运行，不能据其结果返回调参。
+- 不跨 split 移动题目，也不把最终测试失败样本加入 corrective SFT/RLVR。
+- 报告结果时必须写清数据集名称、实际分母、annotation 版本、数据库快照、prompt、
+  thinking 设置、采样参数和 timeout。

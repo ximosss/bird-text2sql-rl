@@ -42,11 +42,9 @@ _FORBIDDEN_NODES = (
 def validate_read_only_sql(sql: str) -> None:
     try:
         statements = [statement for statement in sqlglot.parse(sql, read="sqlite") if statement is not None]
-    # sqlglot raises TokenError for malformed lexical input (for example an
-    # unterminated quoted string) before it can raise ParseError. Both are
-    # ordinary invalid model outputs and must be scored as non-executable,
-    # rather than escaping the reward function and leaving missing metrics.
-    except sqlglot.errors.SqlglotError as exc:
+    # Deeply nested model output can overflow sqlglot's recursive parser before
+    # it raises SqlglotError. Both cases are ordinary invalid model outputs.
+    except (sqlglot.errors.SqlglotError, RecursionError) as exc:
         raise UnsafeSQLError(f"parse_error: {exc}") from exc
     if len(statements) != 1:
         raise UnsafeSQLError("exactly one SQL statement is required")

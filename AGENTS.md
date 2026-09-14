@@ -23,6 +23,19 @@ generic `prime eval run` recommendations below:
   tmux launchers. Do not run long-lived commands in the foreground.
 - Keep `outputs/evals/` only as the historical Prime Eval archive; do not write new
   runs there.
+- Reuse preflight/check results by experiment version. Treat the code commit,
+  resolved config hash, dataset manifest hash, and initialization model/checkpoint
+  ID as the version identity. If those inputs are unchanged, do not run another
+  check before a formal run merely because the process is being restarted, resumed,
+  moved to another machine with the same runtime contract, or given a new run name.
+- Run a new config check only when an identified version input changes or when the
+  preceding check failed and the relevant issue has been fixed. Add a short smoke
+  run only when the training/eval stack, dependencies, model server, model, or GPU
+  topology changes in a way that the config check cannot cover.
+- Checks and smoke runs are diagnostics, not experiments. Do not include them in
+  formal run indexes or result tables, and do not create `*-config-check` runs as a
+  routine companion to every formal run. Record the reused preflight identity in
+  the formal run metadata instead.
 
 ## Shared Best Practices (All Contexts)
 

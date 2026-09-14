@@ -1,0 +1,58 @@
+# Small base-model behavior check through the exact ReViSQL multi-turn protocol.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+model = "bird-revisql-base"
+num_tasks = 8
+num_rollouts = 1
+max_concurrent = 8
+shuffle = false
+push = false
+
+[client]
+type = "eval"
+base_url = "http://127.0.0.1:8000/v1"
+api_key_var = "LOCAL_API_KEY"
+
+[sampling]
+temperature = 0.0
+max_tokens = 3072
+
+[sampling.extra_body.chat_template_kwargs]
+enable_thinking = false
+
+[env.taskset]
+id = "bird-text2sql"
+path = "/home/ubuntu/bird-text2sql-rl/data/processed/rlvr-v2/validation.jsonl"
+database_root = "/data/ximo/sql-training/train_databases"
+sample_rows = 3
+
+[env.taskset.tools]
+timeout_seconds = 8.0
+float_digits = 10
+max_rows = 50
+max_cell_chars = 200
+max_output_chars = 12000
+
+[env.taskset.task]
+protocol = "revisql"
+timeout_seconds = 8.0
+gold_timeout_seconds = 60.0
+float_digits = 10
+shape_reward = false
+strict_format_reward = false
+use_verieql = false
+
+[env.agent]
+max_turns = 5
+max_input_tokens = 32768
+max_output_tokens = 3072
+max_total_tokens = 32768
+
+[env.agent.harness]
+id = "null"
+
+[env.agent.runtime]
+type = "subprocess"
+
+[serve.pool]
+type = "static"
+num_workers = 2

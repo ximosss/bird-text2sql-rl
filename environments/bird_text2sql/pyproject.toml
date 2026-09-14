@@ -1,6 +1,6 @@
 [project]
 name = "bird-text2sql"
-description = "Single-turn BIRD Text-to-SQL RLVR with verified grading and process rewards"
+description = "BIRD Text-to-SQL RLVR with SQL-only and multi-turn ReViSQL protocols"
 tags = ["text-to-sql", "bird", "sqlite", "rlvr", "train", "eval"]
 version = "0.2.0"
 requires-python = ">=3.12"

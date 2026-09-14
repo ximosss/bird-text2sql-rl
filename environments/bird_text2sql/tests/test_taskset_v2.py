@@ -112,3 +112,84 @@ def test_verieql_unsupported_is_unknown_not_fatal(monkeypatch, tmp_path: Path) -
 
     assert asyncio.run(task.execution_reward(trace)) == 1.0
     assert asyncio.run(task.semantic_equivalence_penalty(trace)) == 0.0
+
+
+def test_strict_format_reward_gates_fallback_exact_match(monkeypatch, tmp_path: Path) -> None:
+    async def inline(func, /, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr("bird_text2sql.taskset._run_sql", inline)
+    db_path = make_db(tmp_path)
+    task = BirdText2SQLTask(
+        BirdText2SQLData(
+            idx=0,
+            prompt=[{"role": "user", "content": "q"}],
+            system_prompt="s",
+            answer="SELECT SUM(v) FROM t",
+            example_id="strict-format",
+            db_id="db",
+            db_path=str(db_path),
+            question="sum",
+            question_fingerprint="sum",
+        ),
+        BirdText2SQLTaskConfig(
+            strict_format_reward=True,
+            format_penalty=0.2,
+        ),
+    )
+    trace = SimpleNamespace(
+        last_reply="junk before SQL SELECT SUM(v) FROM t",
+        info={},
+    )
+
+    reward = asyncio.run(task.execution_reward(trace))
+    metrics = asyncio.run(task.execution_metrics(trace))
+
+    assert reward == pytest.approx(-0.2)
+    assert metrics["exact_execution"] == 1.0
+    assert metrics["format_valid"] == 0.0
+    assert metrics["exact_but_format_invalid"] == 1.0
+    assert metrics["exact_and_format_valid"] == 0.0
+    assert metrics["parser_fallback"] == 1.0
+
+
+def test_strict_format_reward_preserves_valid_exact_match(monkeypatch, tmp_path: Path) -> None:
+    async def inline(func, /, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr("bird_text2sql.taskset._run_sql", inline)
+    db_path = make_db(tmp_path)
+    task = BirdText2SQLTask(
+        BirdText2SQLData(
+            idx=0,
+            prompt=[{"role": "user", "content": "q"}],
+            system_prompt="s",
+            answer="SELECT SUM(v) FROM t",
+            example_id="valid-format",
+            db_id="db",
+            db_path=str(db_path),
+            question="sum",
+            question_fingerprint="sum",
+        ),
+        BirdText2SQLTaskConfig(
+            strict_format_reward=True,
+            format_penalty=0.2,
+        ),
+    )
+    trace = SimpleNamespace(
+        last_reply="SELECT SUM(v) FROM t",
+        assistant_messages=[SimpleNamespace(reasoning_content="</tool_call> reasoning")],
+        info={},
+    )
+
+    reward = asyncio.run(task.execution_reward(trace))
+    metrics = asyncio.run(task.execution_metrics(trace))
+
+    assert reward == 1.0
+    assert metrics["exact_and_format_valid"] == 1.0
+    assert metrics["exact_but_format_invalid"] == 0.0
+    assert metrics["parser_sql_only"] == 1.0
+    assert metrics["empty_content"] == 0.0
+    assert metrics["content_control_artifact"] == 0.0
+    assert metrics["reasoning_present"] == 1.0
+    assert metrics["reasoning_control_artifact"] == 1.0

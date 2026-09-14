@@ -1,0 +1,159 @@
+# Existing SFT-v10 -> RLVR with a renderer-level <think> prefill. The prefill
+# is prompt scaffold, not a sampled token. Training additionally excludes
+# control tokens that are impossible in this no-tool task, which turns the
+# clean SFT trajectory into the support used for repair. Eval stays
+# unconstrained so it measures whether the model itself has recovered rather
+# than whether inference-time masking can hide the corruption.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 100
+seq_len = 36864
+dashboard = false
+clean = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 1
+
+[ckpt]
+interval = 20
+keep_last = 6
+keep_interval = 100
+
+[model]
+name = "/data/ximo/bird-text2sql-rl/models/qwen3-4b-bird-sft-v10"
+
+[monitors.file]
+
+[trainer.model]
+impl = "auto"
+
+[trainer.model.lora]
+rank = 32
+alpha = 64.0
+dropout = 0.0
+target_modules = [
+  "q_proj",
+  "k_proj",
+  "v_proj",
+  "o_proj",
+  "gate_proj",
+  "up_proj",
+  "down_proj",
+]
+
+[trainer.optim]
+type = "adamw"
+lr = 3e-6
+weight_decay = 0.0
+max_norm = 1.0
+betas1 = 0.9
+betas2 = 0.999
+
+[trainer.scheduler]
+type = "constant"
+
+[trainer.loss]
+type = "default"
+adv_tau = 1.0
+kl_tau = 1e-3
+dppo_mask_low = 0.2
+dppo_mask_high = 0.2
+
+[orchestrator]
+batch_size = 128
+group_size = 16
+
+[orchestrator.model.lora]
+
+[orchestrator.renderer]
+name = "qwen3"
+enable_thinking = true
+prefill_thinking = true
+
+[orchestrator.train]
+filter_zero_advantages = true
+
+[orchestrator.train.sampling]
+temperature = 0.8
+max_completion_tokens = 2048
+
+[orchestrator.train.sampling.extra_body]
+min_p = 0.05
+bad_words = [
+  "<think>",
+  "<tool_call>",
+  "</tool_call>",
+  "<tool_response>",
+  "</tool_response>",
+  "<|im_start|>",
+]
+
+[[orchestrator.train.source]]
+name = "bird-platinum-train-full"
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/home/ubuntu/bird-text2sql-rl/data/processed/rlvr-v2/train.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.shuffle_seed = 17
+env.taskset.sample_rows = 3
+env.taskset.task.timeout_seconds = 8.0
+env.taskset.task.gold_timeout_seconds = 60.0
+env.taskset.task.float_digits = 10
+env.taskset.task.shape_reward = false
+env.taskset.task.strict_format_reward = true
+env.taskset.task.format_penalty = 0.0
+env.taskset.task.use_verieql = false
+env.agent.max_turns = 1
+env.agent.max_output_tokens = 2048
+env.agent.max_total_tokens = 36864
+env.agent.harness.id = "null"
+env.agent.harness.env = { UV_OFFLINE = "1" }
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[orchestrator.train.source.curriculum.sampler]
+type = "standard"
+
+[orchestrator.train.source.curriculum.gates.zero_signal]
+type = "advantage_range"
+reject_min = 0.0
+reject_max = 0.0
+
+[orchestrator.eval]
+interval = 20
+num_examples = -1
+group_size = 1
+skip_first_step = false
+
+[orchestrator.eval.sampling]
+temperature = 0.0
+max_completion_tokens = 2048
+
+[[orchestrator.eval.source]]
+name = "bird-platinum-validation"
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/home/ubuntu/bird-text2sql-rl/data/processed/rlvr-v2/validation.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.sample_rows = 3
+env.taskset.task.timeout_seconds = 8.0
+env.taskset.task.gold_timeout_seconds = 60.0
+env.taskset.task.float_digits = 10
+env.taskset.task.shape_reward = false
+env.taskset.task.strict_format_reward = true
+env.taskset.task.format_penalty = 0.0
+env.taskset.task.use_verieql = false
+env.agent.max_turns = 1
+env.agent.max_output_tokens = 2048
+env.agent.max_total_tokens = 36864
+env.agent.harness.id = "null"
+env.agent.harness.env = { UV_OFFLINE = "1" }
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[inference]
+
+[inference.vllm]
+gpu_memory_utilization = 0.9
+max_model_len = 36864
+reasoning_parser = "qwen3"

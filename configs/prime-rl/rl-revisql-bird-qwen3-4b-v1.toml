@@ -1,0 +1,175 @@
+# ReViSQL-BIRD adaptation for the original Qwen3-4B-Instruct-2507 checkpoint.
+# This is the 40-step diagnostic pilot configuration; the launcher overrides
+# max_steps=2 for smoke. A formal approximately-one-epoch run is intentionally
+# not started by the adaptation workflow.
+output_dir = "/home/ubuntu/bird-text2sql-rl/outputs/prime-rl"
+max_steps = 40
+seq_len = 32768
+dashboard = false
+clean = false
+
+[deployment]
+num_train_gpus = 1
+num_infer_gpus = 1
+
+[ckpt]
+interval = 20
+keep_last = 5
+keep_interval = 100
+
+[model]
+name = "/data/qwen3-4b-instruct-2507"
+
+[monitors.file]
+
+[trainer.model]
+impl = "auto"
+
+[trainer.model.lora]
+rank = 32
+alpha = 64.0
+dropout = 0.0
+target_modules = [
+  "q_proj",
+  "k_proj",
+  "v_proj",
+  "o_proj",
+  "gate_proj",
+  "up_proj",
+  "down_proj",
+]
+
+[trainer.optim]
+type = "adamw"
+lr = 1e-5
+weight_decay = 0.0
+max_norm = 1.0
+betas1 = 0.9
+betas2 = 0.95
+
+[trainer.scheduler]
+type = "constant"
+
+[trainer.loss]
+type = "custom"
+import_path = "bird_text2sql.cispo.cispo_loss_fn"
+
+[trainer.loss.kwargs]
+clip_low_threshold = 0.8
+clip_high_threshold = 1.2
+
+[orchestrator]
+batch_size = 64
+group_size = 16
+
+[orchestrator.algo]
+type = "grpo"
+
+[orchestrator.concurrency]
+initial_inflight = 64
+min_inflight = 64
+max_inflight = 64
+
+[orchestrator.model.lora]
+
+[orchestrator.renderer]
+# Instruct-2507's canonical non-thinking template leaves the generation prompt
+# bare. The typed qwen3 renderer deliberately adds an empty think wrapper for
+# other Qwen3 checkpoints, which makes this model emit a dangling tool-call
+# close token. Use the canonical Jinja template plus token-level Qwen3 parser.
+name = "default"
+tool_parser = "qwen3"
+enable_thinking = false
+
+[orchestrator.train]
+filter_zero_advantages = true
+
+[orchestrator.train.sampling]
+temperature = 0.8
+max_completion_tokens = 3072
+
+[[orchestrator.train.source]]
+name = "revisql-bird-platinum-train"
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/home/ubuntu/bird-text2sql-rl/data/processed/rlvr-v2/train.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.shuffle_seed = 17
+env.taskset.sample_rows = 3
+env.taskset.tools.timeout_seconds = 8.0
+env.taskset.tools.float_digits = 10
+env.taskset.tools.max_rows = 50
+env.taskset.tools.max_cell_chars = 200
+env.taskset.tools.max_output_chars = 12000
+env.taskset.task.protocol = "revisql"
+env.taskset.task.timeout_seconds = 8.0
+env.taskset.task.gold_timeout_seconds = 60.0
+env.taskset.task.float_digits = 10
+env.taskset.task.shape_reward = true
+env.taskset.task.strict_format_reward = true
+env.taskset.task.format_penalty = 0.05
+env.taskset.task.use_verieql = true
+env.taskset.task.verieql_required = true
+env.taskset.task.verieql_timeout_seconds = 30.0
+env.taskset.task.verieql_bound_size = 2
+env.taskset.task.equivalence_penalty = 0.2
+env.taskset.task.evidence_penalty = 0.1
+env.agent.max_turns = 5
+env.agent.max_input_tokens = 32768
+env.agent.max_output_tokens = 3072
+env.agent.max_total_tokens = 32768
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[orchestrator.train.source.curriculum.sampler]
+type = "standard"
+
+[orchestrator.eval]
+interval = 20
+num_examples = -1
+group_size = 1
+skip_first_step = false
+
+[orchestrator.eval.sampling]
+temperature = 0.0
+max_completion_tokens = 3072
+
+[[orchestrator.eval.source]]
+name = "revisql-bird-platinum-validation"
+env.taskset.id = "bird-text2sql"
+env.taskset.path = "/home/ubuntu/bird-text2sql-rl/data/processed/rlvr-v2/validation.jsonl"
+env.taskset.database_root = "/data/ximo/sql-training/train_databases"
+env.taskset.sample_rows = 3
+env.taskset.tools.timeout_seconds = 8.0
+env.taskset.tools.float_digits = 10
+env.taskset.tools.max_rows = 50
+env.taskset.tools.max_cell_chars = 200
+env.taskset.tools.max_output_chars = 12000
+env.taskset.task.protocol = "revisql"
+env.taskset.task.timeout_seconds = 8.0
+env.taskset.task.gold_timeout_seconds = 60.0
+env.taskset.task.float_digits = 10
+env.taskset.task.shape_reward = false
+env.taskset.task.strict_format_reward = true
+env.taskset.task.format_penalty = 0.05
+env.taskset.task.use_verieql = false
+env.agent.max_turns = 5
+env.agent.max_input_tokens = 32768
+env.agent.max_output_tokens = 3072
+env.agent.max_total_tokens = 32768
+env.agent.harness.id = "null"
+env.agent.runtime.type = "subprocess"
+serve.pool.type = "static"
+serve.pool.num_workers = 2
+
+[inference]
+
+[inference.vllm]
+gpu_memory_utilization = 0.9
+max_model_len = 32768
+enable_prefix_caching = true
+generation_config = "vllm"
+tool_call_parser = "hermes"
+# Do not set a reasoning parser. `auto` resolves to None for this local
+# non-thinking Instruct-2507 path.

@@ -44,6 +44,10 @@ _HEADING_RE = re.compile(
 )
 _SELECT_RE = re.compile(r"\b(?:WITH|SELECT)\b.*", re.IGNORECASE | re.DOTALL)
 _SQL_ONLY_RE = re.compile(r"^\s*(?P<sql>(?:WITH|SELECT)\b.*)\s*$", re.IGNORECASE | re.DOTALL)
+_SOLUTION_END = "</solution>"
+_FORBIDDEN_SOLUTION_TAG_RE = re.compile(
+    r"</?(?:think|sql|observation)\b", re.IGNORECASE
+)
 
 
 def completion_text(completion: Any) -> str:
@@ -126,3 +130,29 @@ def parse_completion(completion: Any) -> ParsedCompletion:
     if select:
         return ParsedCompletion(_clean_sql(select.group(0)), False, "fallback")
     return ParsedCompletion(None, False, "missing")
+
+
+def parse_revisql_completion(completion: Any) -> ParsedCompletion:
+    """Apply the released ReViSQL terminal-solution extraction contract.
+
+    ReViSQL treats only a response ending in ``</solution>`` as terminal, uses
+    the text after the last opening tag, and rejects nested reasoning/SQL tags
+    inside the solution.  Intermediate prose and tool calls are intentionally
+    not parsed as answers.
+    """
+
+    text = completion_text(completion)
+    if not text.rstrip().casefold().endswith(_SOLUTION_END):
+        return ParsedCompletion(None, False, "missing_solution")
+    marker = text.casefold().rfind("<solution>")
+    if marker < 0:
+        return ParsedCompletion(None, False, "missing_solution")
+    tail = text[marker + len("<solution>") :]
+    if tail.casefold().count(_SOLUTION_END) != 1:
+        return ParsedCompletion(None, False, "malformed_solution")
+    end = tail.casefold().find(_SOLUTION_END)
+    solution = tail[:end]
+    sql = _clean_sql(solution)
+    if sql is None or _FORBIDDEN_SOLUTION_TAG_RE.search(solution):
+        return ParsedCompletion(None, False, "malformed_solution")
+    return ParsedCompletion(sql, True, "solution")

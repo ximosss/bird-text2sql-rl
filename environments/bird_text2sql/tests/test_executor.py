@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import bird_text2sql.executor as executor
 from bird_text2sql.executor import (
     compare_execution,
     compare_result_rows,
@@ -77,6 +78,18 @@ def test_tokenizer_errors_are_scored_as_invalid_sql(tmp_path: Path) -> None:
     assert not result.ok
     assert result.error is not None
     assert result.error.startswith("parse_error:")
+
+
+def test_parser_recursion_errors_are_scored_as_invalid_sql(tmp_path: Path, monkeypatch) -> None:
+    db_path = make_db(tmp_path)
+
+    def raise_recursion_error(*args, **kwargs):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(executor.sqlglot, "parse", raise_recursion_error)
+    result = execute_sql(db_path, "SELECT 1")
+    assert not result.ok
+    assert result.error == "parse_error: maximum recursion depth exceeded"
 
 
 def test_float_results_are_rounded_for_stable_comparison(tmp_path: Path) -> None:

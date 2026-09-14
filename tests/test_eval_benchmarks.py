@@ -73,6 +73,30 @@ def test_generalization_configs_are_local_reproducible_and_correctly_sized() -> 
         config = tomllib.loads((CONFIG_ROOT / f"{name}.toml").read_text())
         assert "schema_root" not in config["env"]["taskset"]
 
+    for name, (size, filename) in expected.items():
+        config = tomllib.loads((CONFIG_ROOT / f"{name}-base.toml").read_text())
+        assert config["num_tasks"] == size
+        assert config["env"]["taskset"]["path"].endswith(filename)
+        assert config["sampling"]["extra_body"]["chat_template_kwargs"][
+            "enable_thinking"
+        ] is False
+
+    for name, (size, filename) in expected.items():
+        config = tomllib.loads((CONFIG_ROOT / f"revisql-{name}.toml").read_text())
+        assert config["num_tasks"] == size
+        assert config["num_rollouts"] == 1
+        assert config["push"] is False
+        assert config["env"]["taskset"]["path"].endswith(filename)
+        assert config["env"]["taskset"]["task"]["protocol"] == "revisql"
+        assert config["sampling"]["temperature"] == 0.0
+        assert config["sampling"]["max_tokens"] == 3072
+        assert config["sampling"]["extra_body"]["chat_template_kwargs"][
+            "enable_thinking"
+        ] is False
+        assert config["env"]["agent"]["max_turns"] == 5
+        assert config["env"]["agent"]["max_output_tokens"] == 3072
+        assert config["env"]["taskset"]["tools"]["max_output_chars"] == 12000
+
 
 def test_arcwise_schema_overlay_is_complete_for_its_database_ids() -> None:
     rows = load_rows("arcwise/arcwise_plat_full_with_diff.json")
@@ -94,4 +118,3 @@ def test_slow_gold_cache_matches_all_four_annotation_sets() -> None:
         for question_id, cached in cache.items():
             observed = hashlib.sha256(rows[question_id]["SQL"].strip().encode()).hexdigest()
             assert observed == cached["gold_sql_sha256"]
-

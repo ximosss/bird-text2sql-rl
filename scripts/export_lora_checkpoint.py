@@ -31,7 +31,13 @@ def parse_args() -> argparse.Namespace:
 def adapter_config_from_training_config(path: Path) -> dict:
     config = tomllib.loads(path.read_text(encoding="utf-8"))
     model = config["model"]
-    lora = model["lora"]
+    # Prime-RL v1 keeps the trainable model implementation and LoRA settings
+    # under [trainer.model], while older project configs placed LoRA directly
+    # under [model]. Accept both layouts so checkpoint recovery remains tied to
+    # the resolved training config instead of a hand-written adapter schema.
+    lora = model.get("lora") or config.get("trainer", {}).get("model", {}).get("lora")
+    if not isinstance(lora, dict):
+        raise KeyError("LoRA settings not found under [model.lora] or [trainer.model.lora]")
     return {
         "peft_type": "LORA",
         "task_type": "CAUSAL_LM",

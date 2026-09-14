@@ -1,4 +1,4 @@
-from bird_text2sql.parser import parse_completion
+from bird_text2sql.parser import parse_completion, parse_revisql_completion
 from bird_text2sql.prompts import structured_answer
 
 
@@ -72,3 +72,23 @@ def test_missing_sql() -> None:
     parsed = parse_completion("I do not know")
     assert parsed.sql is None
     assert not parsed.format_valid
+
+
+def test_revisql_extracts_only_terminal_solution() -> None:
+    parsed = parse_revisql_completion(
+        "Visible analysis.\n<solution>SELECT name FROM people</solution>"
+    )
+    assert parsed.format_valid
+    assert parsed.sql == "SELECT name FROM people"
+    assert parsed.source == "solution"
+
+    assert not parse_revisql_completion("<solution>SELECT 1</solution> trailing").format_valid
+    assert not parse_revisql_completion("SELECT 1").format_valid
+
+
+def test_revisql_rejects_nested_reasoning_tags_inside_solution() -> None:
+    parsed = parse_revisql_completion(
+        "<solution><think>hidden</think> SELECT 1</solution>"
+    )
+    assert not parsed.format_valid
+    assert parsed.sql is None
