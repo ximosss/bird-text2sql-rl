@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -17,6 +18,7 @@ from .executor import (
     deserialize_ordered_rows,
     deserialize_rows,
     execute_sql,
+    serialize_ordered_rows,
 )
 from .parser import parse_completion, parse_revisql_completion
 from .prompts import REVISQL_SYSTEM_PROMPT, SYSTEM_PROMPT, evidence_items
@@ -194,6 +196,13 @@ class BirdText2SQLTask(vf.Task[BirdText2SQLData, BirdSQLState, BirdText2SQLTaskC
             gold_valid=gold_ok,
             predicted_error=predicted.error,
             gold_error=gold_error,
+            predicted_result_hash=(
+                hashlib.sha256(
+                    serialize_ordered_rows(predicted.ordered_rows).encode("utf-8")
+                ).hexdigest()
+                if predicted.ok
+                else None
+            ),
         )
         if exact and self.config.use_verieql:
             equivalent, equivalence_error = await grade_equivalence(

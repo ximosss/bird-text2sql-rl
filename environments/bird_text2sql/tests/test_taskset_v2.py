@@ -193,3 +193,33 @@ def test_strict_format_reward_preserves_valid_exact_match(monkeypatch, tmp_path:
     assert metrics["content_control_artifact"] == 0.0
     assert metrics["reasoning_present"] == 1.0
     assert metrics["reasoning_control_artifact"] == 1.0
+
+
+def test_score_records_stable_execution_result_hash(monkeypatch, tmp_path: Path) -> None:
+    async def inline(func, /, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr("bird_text2sql.taskset._run_sql", inline)
+    db_path = make_db(tmp_path)
+    task = BirdText2SQLTask(
+        BirdText2SQLData(
+            idx=0,
+            prompt=[{"role": "user", "content": "q"}],
+            system_prompt="s",
+            answer="SELECT v FROM t ORDER BY v",
+            example_id="result-hash",
+            db_id="db",
+            db_path=str(db_path),
+            question="values",
+            question_fingerprint="values",
+        ),
+        BirdText2SQLTaskConfig(),
+    )
+    first = SimpleNamespace(last_reply="SELECT v FROM t ORDER BY v", info={})
+    second = SimpleNamespace(last_reply="SELECT v FROM t ORDER BY v DESC", info={})
+
+    first_score = asyncio.run(task._score(first))
+    second_score = asyncio.run(task._score(second))
+
+    assert first_score["predicted_result_hash"]
+    assert first_score["predicted_result_hash"] != second_score["predicted_result_hash"]

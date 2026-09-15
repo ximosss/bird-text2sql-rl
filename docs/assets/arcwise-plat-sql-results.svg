@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1150" viewBox="0 0 1600 1150" role="img" aria-labelledby="title desc">
+  <title id="title">Arcwise-Plat-SQL exact execution accuracy comparison</title>
+  <desc id="desc">Horizontal bar chart comparing this project's Qwen3-4B greedy accuracy of 75.50 percent and SC-16 accuracy of 83.13 percent with measured DeepSeek V4 Flash SC-16 at 81.93 percent, ReViSQL and frontier-model results from the Thinking Machines Lab blog, and five state-of-the-art agentic text-to-SQL scaffolds. The human proxy is 92.96 percent.</desc>
+  <rect width="1600" height="1150" fill="#ffffff"/>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #242424; }
+    .title { font-family: Georgia, "Times New Roman", serif; font-size: 42px; font-weight: 700; }
+    .subtitle { font-size: 19px; fill: #616161; }
+    .group { font-size: 14px; font-weight: 750; letter-spacing: 1.5px; fill: #777777; }
+    .label { font-size: 17px; font-weight: 650; }
+    .detail { font-size: 15px; font-weight: 400; fill: #737373; }
+    .value { font-size: 18px; font-weight: 750; }
+    .tick { font-size: 15px; fill: #757575; }
+    .note { font-size: 14px; fill: #696969; }
+    .legend { font-size: 14px; fill: #5e5e5e; }
+    .grid { stroke: #e4e4e4; stroke-width: 1; }
+    .axis { stroke: #a9a9a9; stroke-width: 1.25; }
+  </style>
+
+  <text x="70" y="66" class="title">Arcwise-Plat-SQL results</text>
+  <text x="70" y="101" class="subtitle">Exact execution accuracy on 498 questions · identical benchmark, decoding protocol labeled</text>
+
+  <rect x="70" y="126" width="18" height="18" rx="3" fill="#0b8f6a"/>
+  <text x="98" y="141" class="legend">Our Qwen3-4B</text>
+  <rect x="257" y="126" width="18" height="18" rx="3" fill="#497aa7"/>
+  <text x="285" y="141" class="legend">Measured via this project</text>
+  <rect x="509" y="126" width="18" height="18" rx="3" fill="#747474"/>
+  <text x="537" y="141" class="legend">Blog model baselines</text>
+  <rect x="741" y="126" width="18" height="18" rx="3" fill="#d19235"/>
+  <text x="769" y="141" class="legend">Agentic scaffolding</text>
+  <line x1="959" y1="135" x2="996" y2="135" stroke="#c85d4d" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="1005" y="141" class="legend">Human proxy</text>
+
+  <line x1="470" y1="170" x2="470" y2="1008" class="axis"/>
+  <line x1="727.5" y1="170" x2="727.5" y2="1008" class="grid"/>
+  <line x1="985" y1="170" x2="985" y2="1008" class="grid"/>
+  <line x1="1242.5" y1="170" x2="1242.5" y2="1008" class="grid"/>
+  <line x1="1500" y1="170" x2="1500" y2="1008" class="grid"/>
+  <line x1="1427.5" y1="170" x2="1427.5" y2="1008" stroke="#c85d4d" stroke-width="2" stroke-dasharray="8 7"/>
+  <rect x="1332" y="171" width="184" height="24" rx="4" fill="#ffffff" opacity="0.92"/>
+  <text x="1500" y="189" text-anchor="end" class="note" fill="#a9483b">Human proxy 92.96%</text>
+
+  <text x="70" y="204" class="group">THIS PROJECT · QWEN3-4B</text>
+  <text x="450" y="237" text-anchor="end" class="label">Our ReViSQL <tspan class="detail">· SC-16, T=1</tspan></text>
+  <rect x="470" y="216" width="856.24" height="28" rx="4" fill="#087f5b"/>
+  <text x="1338" y="237" class="value" fill="#087f5b">83.13</text>
+  <text x="450" y="279" text-anchor="end" class="label">Our ReViSQL <tspan class="detail">· greedy, T=0</tspan></text>
+  <rect x="470" y="258" width="777.65" height="28" rx="4" fill="#20a47e"/>
+  <text x="1259" y="279" class="value" fill="#087f5b">75.50</text>
+
+  <text x="70" y="329" class="group">EXTERNAL MODEL · MEASURED WITH THE SAME PROJECT HARNESS</text>
+  <text x="450" y="362" text-anchor="end" class="label">DeepSeek V4 Flash <tspan class="detail">· SC-16, T=1</tspan></text>
+  <rect x="470" y="341" width="843.88" height="28" rx="4" fill="#497aa7"/>
+  <text x="1326" y="362" class="value" fill="#3f6e98">81.93</text>
+
+  <text x="70" y="412" class="group">MODEL BASELINES · THINKING MACHINES LAB</text>
+  <text x="450" y="445" text-anchor="end" class="label">ReViSQL-K2.6 <tspan class="detail">· SC-16, T=1</tspan></text>
+  <rect x="470" y="424" width="957.59" height="28" rx="4" fill="#555555"/>
+  <text x="1439" y="445" class="value">92.97</text>
+  <text x="450" y="487" text-anchor="end" class="label">ReViSQL-K2.6 <tspan class="detail">· full method, greedy</tspan></text>
+  <rect x="470" y="466" width="941.11" height="28" rx="4" fill="#686868"/>
+  <text x="1423" y="487" class="value">91.37</text>
+  <text x="450" y="529" text-anchor="end" class="label">Kimi-K2.6 <tspan class="detail">· verified data only</tspan></text>
+  <rect x="470" y="508" width="912.07" height="28" rx="4" fill="#888888"/>
+  <text x="1394" y="529" class="value">88.55</text>
+  <text x="450" y="571" text-anchor="end" class="label">GPT-5.6 Sol Ultra <tspan class="detail">· blog protocol</tspan></text>
+  <rect x="470" y="550" width="893.53" height="28" rx="4" fill="#a0a0a0"/>
+  <text x="1376" y="571" class="value">86.75</text>
+  <text x="450" y="613" text-anchor="end" class="label">Claude Fable 5 <tspan class="detail">· blog protocol</tspan></text>
+  <rect x="470" y="592" width="874.88" height="28" rx="4" fill="#b0b0b0"/>
+  <text x="1357" y="613" class="value">84.94</text>
+
+  <text x="70" y="663" class="group">STATE-OF-THE-ART TEXT-TO-SQL SCAFFOLDING · BLOG / PAPER</text>
+  <text x="450" y="696" text-anchor="end" class="label">OpenSearch <tspan class="detail">· GPT-5.2</tspan></text>
+  <rect x="470" y="675" width="854.18" height="28" rx="4" fill="#c47d22"/>
+  <text x="1336" y="696" class="value" fill="#a86618">82.93</text>
+  <text x="450" y="738" text-anchor="end" class="label">GenaSQL <tspan class="detail">· GPT-5.2</tspan></text>
+  <rect x="470" y="717" width="841.82" height="28" rx="4" fill="#cd8a2f"/>
+  <text x="1324" y="738" class="value" fill="#a86618">81.73</text>
+  <text x="450" y="780" text-anchor="end" class="label">Contextual-SQL <tspan class="detail">· XiYan-32B</tspan></text>
+  <rect x="470" y="759" width="773.53" height="28" rx="4" fill="#d79b49"/>
+  <text x="1256" y="780" class="value" fill="#a86618">75.10</text>
+  <text x="450" y="822" text-anchor="end" class="label">SHARE <tspan class="detail">· GPT-5.2</tspan></text>
+  <rect x="470" y="801" width="734.29" height="28" rx="4" fill="#dea85e"/>
+  <text x="1217" y="822" class="value" fill="#a86618">71.29</text>
+  <text x="450" y="864" text-anchor="end" class="label">CSC-SQL <tspan class="detail">· XiYan-32B</tspan></text>
+  <rect x="470" y="843" width="732.12" height="28" rx="4" fill="#e3b570"/>
+  <text x="1215" y="864" class="value" fill="#a86618">71.08</text>
+
+  <line x1="470" y1="1008" x2="1500" y2="1008" class="axis"/>
+  <text x="470" y="1035" text-anchor="middle" class="tick">0%</text>
+  <text x="727.5" y="1035" text-anchor="middle" class="tick">25%</text>
+  <text x="985" y="1035" text-anchor="middle" class="tick">50%</text>
+  <text x="1242.5" y="1035" text-anchor="middle" class="tick">75%</text>
+  <text x="1500" y="1035" text-anchor="middle" class="tick">100%</text>
+
+  <text x="70" y="1082" class="note">Our scores: Qwen3-4B step 1,300 (greedy 376/498; SC-16 414/498) and DeepSeek V4 Flash 0731 (SC-16 408/498).</text>
+  <text x="70" y="1107" class="note">Upstream scores: Thinking Machines Lab blog and ReViSQL technical report. Agentic systems use multi-stage scaffolds; decoding costs and base-model sizes differ.</text>
+</svg>
