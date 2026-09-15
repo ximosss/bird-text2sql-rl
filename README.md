@@ -1,7 +1,7 @@
 # ReViSQL-BIRD：Qwen3-4B Text-to-SQL RLVR
 
 从原始 `Qwen3-4B-Instruct-2507` 出发，在 BIRD-Platinum 上进行 RLVR 训练后，最佳
-checkpoint（step 1,300）在 Arcwise-Plat-SQL 上取得 **75.50% greedy** 和
+checkpoint 在 Arcwise-Plat-SQL 上取得 **75.50% greedy** 和
 **83.13% SC-16**；在全校正的 Arcwise-Plat 上取得 **81.12% greedy**。
 
 ![Arcwise-Plat-SQL 结果对比](docs/assets/arcwise-plat-sql-results.svg)
@@ -22,7 +22,7 @@ text-to-SQL scaffolding。DeepSeek V4 Flash 及本项目 SC-16 均由本仓库�
 
 完整实验记录见 [docs/RESULTS.md](docs/RESULTS.md)。
 
-**Motivation**
+## Motivation
 
 对于客服流程自动化, 通过sql直接查询数据库的方式显然比预定设计好的有限按钮和问答模版更好. 相较于传统规则匹配方式, 一般的客服Agent需要接入作用有限的业务API, 而SQL Agent的好处是提供了有关数据库访问原本的的灵活性, 远远放宽了用户的查询和操作范围. 由于直接和内部的数据库对接, 存在数据安全和隐私上的风险, 使用最好的前沿模型是不可能的. 尽管通过增加中间层能够缓解这一问题, 不过更好的方法是使用local model. 问题在于, 在面对较为复杂的真实业务时, sql agent with local slm 能否达到前沿llm的标准.
 
@@ -30,7 +30,7 @@ text-to-SQL scaffolding。DeepSeek V4 Flash 及本项目 SC-16 均由本仓库�
 
 Yuxuan Zhu等人和Thinking Machines的合作结果给出了一个非常优秀的案例. 在Kimi-K2.6上RLVR得到的ReViSQL-K2.6第一次达到了人类级别精度的text-to-sql. 但Kimi-K2.6并不是一个合适的local model. 它并不合适作为subagent或者tool被其他更加强大的model调用, 更不能仅仅为了text-to-sql一个目标去引入这个巨物. 这里的信念是, 写sql的能力是所有语言模型都有的基础能力在一个窄的任务分布上的重叠. 也就是说, slm理应做得到.
 
-#### Method
+## Method
 
 本工作基本复现了 Yuxuan Zhu 等人提出的 ReViSQL-BIRD 方法(感谢他们). 我受到 VibeThinker-3B 的启发, 选择从原始 Qwen3-4B-Instruct-2507 直接进行 RLVR 训练. 为了适配 Qwen3-4B和本地的Prime-RL 训练环境, 我主要在方法上做了以下修改.
 
@@ -192,3 +192,21 @@ BIRD_RUN_PREFIX=my-model \
 
 评测使用 greedy 单样本（`temperature=0`）和 exact execution accuracy。详细评测
 合同见 [docs/EVALUATION.md](docs/EVALUATION.md)。
+
+## 引用
+
+本项目直接使用或复现了以下工作：
+
+1. Yuxuan Zhu, Tengjun Jin, Yoojin Choi, and Daniel Kang. 2026. [Human-Level Text-to-SQL via Reinforcement Learning on Verified Data, Without Pipeline Engineering](https://arxiv.org/abs/2603.20004). arXiv:2603.20004.（ReViSQL-BIRD 与 BIRD-Platinum）
+
+2. Yuxuan Zhu, Tengjun Jin, Yoojin Choi, and Daniel Kang. 2026. [Putting Task Expertise into RL Achieves State-of-the-Art Performance on Text-to-SQL](https://thinkingmachines.ai/news/putting-task-expertise-into-rl/). Thinking Machines Lab.
+
+3. Tengjun Jin, Yoojin Choi, Yuxuan Zhu, and Daniel Kang. 2026. [Pervasive Annotation Errors Break Text-to-SQL Benchmarks and Leaderboards](https://arxiv.org/abs/2601.08778). *Proceedings of the VLDB Endowment*.（Arcwise-Plat 与 Arcwise-Plat-SQL）
+
+4. Jinyang Li et al. 2023. [Can LLM Already Serve as a Database Interface? A BIg Bench for Large-Scale Database Grounded Text-to-SQLs](https://arxiv.org/abs/2305.03111). *NeurIPS 2023*.（BIRD）
+
+5. Yang He, Pinhan Zhao, Xinyu Wang, and Yuepeng Wang. 2024. [VeriEQL: Bounded Equivalence Verification for Complex SQL Queries with Integrity Constraints](https://arxiv.org/abs/2403.03193). *Proceedings of the ACM on Programming Languages*, 8 (OOPSLA1), 1071–1099.
+
+6. Prime Intellect. 2025. [prime-rl](https://github.com/PrimeIntellect-ai/prime-rl). GitHub repository.
+
+7. William Brown. 2025. [Verifiers: Environments for LLM Reinforcement Learning](https://github.com/PrimeIntellect-ai/verifiers). GitHub repository.
