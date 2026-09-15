@@ -13,14 +13,17 @@ checkpoint 在 Arcwise-Plat-SQL 上取得 **75.50% greedy** 和
 | BIRD Full Dev | 961/1,534 = 62.65% | 原始、含噪标注 |
 | BIRD Mini-Dev | 298/500 = 59.60% | 原始、含噪标注 |
 
-图中的上游结果来自 Thinking Machines Lab 的
+> 图中的上游结果来自 Thinking Machines Lab 的
 [ReViSQL 文章](https://thinkingmachines.ai/news/putting-task-expertise-into-rl/)及其
 [技术报告](https://arxiv.org/abs/2603.20004)：除 ReViSQL-K2.6、GPT-5.6 Sol Ultra
 和 Claude Fable 5 外，也包含五个使用 GPT-5.2 或 XiYan-32B 的 agentic
 text-to-SQL scaffolding。DeepSeek V4 Flash 及本项目 SC-16 均由本仓库按相同
 `temperature=1`、16 候选执行结果多数票协议实测；不同模型规模和推理协议已在图中标注。
 
-完整实验记录见 [docs/RESULTS.md](docs/RESULTS.md)。
+> 完整实验记录见 [docs/RESULTS.md](docs/RESULTS.md)。
+
+验证集最优的 step 1,300 LoRA adapter 已发布到
+[Hugging Face：ximosss/ReViSQL-Qwen3-4B](https://huggingface.co/ximosss/ReViSQL-Qwen3-4B)。
 
 ## Motivation
 
@@ -73,6 +76,8 @@ reward 训练 Text-to-SQL 模型。模型最多进行五轮只读数据库交互
 
 主配置：
 [`configs/prime-rl/rl-revisql-bird-qwen3-4b-v1.toml`](configs/prime-rl/rl-revisql-bird-qwen3-4b-v1.toml)。
+最终权重：
+[`ximosss/ReViSQL-Qwen3-4B`](https://huggingface.co/ximosss/ReViSQL-Qwen3-4B)（LoRA adapter）。
 
 | 配置 | 值 |
 | --- | --- |
@@ -107,6 +112,13 @@ prime env install bird-text2sql --path environments --plain
 
 ```bash
 rg -n '/data/|/home/ubuntu/bird-text2sql-rl' configs/prime-rl scripts
+```
+
+下载最终 adapter：
+
+```bash
+uvx --from huggingface-hub hf download ximosss/ReViSQL-Qwen3-4B \
+  --local-dir models/ReViSQL-Qwen3-4B
 ```
 
 启动结果面板：
@@ -164,8 +176,6 @@ tmux attach -t <run-name>
 ./scripts/launch_revisql_bird.sh resume <run-name> <target-steps>
 ```
 
-配置未变化时可复用已通过的 check；无需为每次续跑重复检查。checkpoint、日志和指标
-保存在 `outputs/prime-rl/<run-name>/`。
 
 ## 评测
 
