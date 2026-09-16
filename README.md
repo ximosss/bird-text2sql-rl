@@ -65,7 +65,15 @@ Yuxuan Zhu等人和Thinking Machines的合作结果给出了一个非常优秀�
 
 此外, 在 RL 阶段观察了 base model 的评测通过率和错误题目分布之后, 我还是无法确定是Bird训练集的问题导致错上加错, 还是模型本身的能力问题. 直到看到 Thinking Machines 的 blog, 才有了干净的数据集和有效的训练 recipe. 在此特别感谢他们的工作.
 
+<p align="center">
+  <img src="images/reward.png" width="32%" alt="effective/agent/reward">
+  <img src="images/valuation.png" width="32%" alt="all/agent/avg@1">
+  <img src="images/tokens.png" width="32%" alt="effective/num_total_tokens">
+</p>
 
+<p align="center">
+  <img src="images/stability.png" width="100%" alt="optim/grad_norm, entropy/all, mismatch_kl/all, kl_ent_ratio">
+</p>
 
 ## 项目介绍
 
