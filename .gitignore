@@ -27,4 +27,4 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 /third_party/VeriEQL/
-/images/
+
